@@ -70,6 +70,10 @@ button{cursor:pointer;border:0;background:none;padding:0}
 .hero::after{content:"";position:absolute;right:-50px;top:-50px;width:170px;height:170px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.35),transparent 70%)}
 .hero .kao{position:absolute;right:16px;top:16px;font-size:13px;opacity:.85}
 .pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;background:rgba(255,255,255,.18);padding:5px 10px;border-radius:999px}
+.inc{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;width:100%;text-align:left;color:inherit;position:relative;z-index:1}
+.incv{font-size:24px;font-weight:700;margin:8px 0 2px}
+.pen{width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.18);display:grid;place-items:center;font-size:16px;flex:none}
+.hero .hr{height:1px;background:rgba(255,255,255,.2);margin:14px 0}
 .big{font-size:34px;font-weight:800;letter-spacing:-.03em;margin:10px 0 2px}
 .big.neg{color:#FFC2B6}
 .sub{font-size:13px;opacity:.85}
@@ -304,8 +308,8 @@ function seed(){
   for(let back=5; back>=0; back--){
     const d0 = new Date(now.getFullYear(), now.getMonth()-back, 1), y=d0.getFullYear(), m=d0.getMonth();
     const dim = new Date(y,m+1,0).getDate(), last = back===0 ? now.getDate() : dim;
-    tx.push({id:uid(),t:"in",a:6000000,c:"luong",n:"Lương tháng",d:dkey(y,m,Math.min(5,last))});
-    if(back===0 && last<5) tx.pop();
+    if(back===1) tx.push({id:uid(),t:"in",a:500000,c:"duocho",n:"Mẹ cho",d:dkey(y,m,15)});
+    if(back===0 && last>=3) tx.push({id:uid(),t:"in",a:300000,c:"lamthem",n:"Vẽ commission",d:dkey(y,m,3)});
     for(let d=1; d<=last; d++){
       const k = r()<.25 ? 0 : 1 + Math.floor(r()*2.6);
       for(let i=0;i<k;i++){ const t = T[Math.floor(r()*T.length)]; tx.push({id:uid(),t:"out",a:Math.round((t[2]+r()*(t[3]-t[2])))*1000,c:t[0],n:t[1],d:dkey(y,m,d)}); }
@@ -315,12 +319,12 @@ function seed(){
   const rent = uid(), paid = {};
   if(now.getDate()>=10) paid[`${now.getFullYear()}-${pad(now.getMonth()+1)}`] = [rent];
   const gs = dkey(now.getFullYear(),now.getMonth(),Math.min(10,now.getDate())), ge = dkey(now.getFullYear()+1,now.getMonth(),Math.min(10,now.getDate()));
-  return {v:1,budget:5000000,theme:"auto",sample:true,tx,paid,veil:1,
+  return {v:1,income:6000000,incomeM:{},theme:"auto",sample:true,tx,paid,veil:1,
     goals:[{id:uid(),n:"Bảng vẽ",e:"🎨",a:4000000,s:gs,end:ge,dep:[{a:50000,d:TODAY}]},{id:uid(),n:"Đi Đà Lạt",e:"✈️",a:3000000,s:dkey(now.getFullYear(),now.getMonth()-2,1),end:dkey(now.getFullYear(),now.getMonth()+4,1),dep:[{a:600000,d:TODAY},{a:450000,d:TODAY}]}],
     bills:[{id:rent,n:"Tiền nhà",a:2500000,day:10,c:"hoadon"},{id:uid(),n:"Gói 4G",a:90000,day:18,c:"hoadon"},{id:uid(),n:"Spotify",a:59000,day:24,c:"giaitri"}],
   };
 }
-function load(){ try{ const raw = localStorage.getItem(KEY); if(raw){ S = JSON.parse(raw); S.goals ||= []; return; } }catch(e){} S = seed(); }
+function load(){ try{ const raw = localStorage.getItem(KEY); if(raw){ S = JSON.parse(raw); S.goals ||= []; S.incomeM ||= {}; if(S.income==null) S.income = 0; return; } }catch(e){} S = seed(); }
 function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){ toast("Không lưu được vào máy này"); } }
 
 /* ---------- helpers ---------- */
@@ -343,6 +347,8 @@ const ic = c => `<span class="ic" style="background:${CATS[c].c}22">${CATS[c].e}
 const monthName = (y,m) => `Th${m+1}/${y}`;
 const lvl = v => !v ? "" : v<100000 ? "l1" : v<=500000 ? "l2" : "l3";
 
+const baseIncome = (y,m) => { const k = ym(y,m); return S.incomeM[k] != null ? S.incomeM[k] : (S.income||0); };
+const incomeOf = (y,m) => baseIncome(y,m) + sum(inMonth(y,m),"in");
 function txRow(t){
   const C = CATS[t.c]||CATS.khac;
   return `<button class="tx" data-edit="${t.id}">${ic(t.c in CATS?t.c:"khac")}
@@ -364,15 +370,15 @@ function monthHeader(){
 
 /* ---------- screens ---------- */
 function home(){
-  const L = inMonth(view.y,view.m), out = sum(L,"out"), inc = sum(L,"in");
-  const left = S.budget - out, pct = S.budget ? Math.min(100, out/S.budget*100) : 0;
+  const L = inMonth(view.y,view.m), out = sum(L,"out"), extra = sum(L,"in"), base = baseIncome(view.y,view.m), inc = base + extra;
+  const left = inc - out, pct = inc ? Math.min(100, out/inc*100) : 0;
   const dim = new Date(view.y,view.m+1,0).getDate(), passed = isCur() ? now.getDate() : dim;
   const elapsed = passed/dim*100;
   let tip;
-  if(!S.budget) tip = "Đặt ngân sách tháng trong Cài đặt để app nhắc em nha.";
-  else if(out > S.budget) tip = `Lố ngân sách ${fmt(out-S.budget)} rồi nè, chậm lại xíu nha (╥﹏╥)`;
-  else if(isCur() && pct > elapsed + 8) tip = `Hơi nhanh tay rồi: mới qua ${Math.round(elapsed)}% tháng mà đã xài ${Math.round(pct)}% ngân sách (・_・;)`;
-  else tip = `Tốc độ chi tiêu tốt! Đã xài ${Math.round(pct)}% ngân sách tháng (๑˃ᴗ˂)ﻭ`;
+  if(!inc) tip = "Bấm ✎ ở trên để nhập thu nhập tháng này nha.";
+  else if(out > inc) tip = `Xài lố thu nhập ${fmt(out-inc)} rồi nè, chậm lại xíu nha (╥﹏╥)`;
+  else if(isCur() && pct > elapsed + 8) tip = `Hơi nhanh tay rồi: mới qua ${Math.round(elapsed)}% tháng mà đã xài ${Math.round(pct)}% thu nhập (・_・;)`;
+  else tip = `Tốc độ chi tiêu tốt! Đã xài ${Math.round(pct)}% thu nhập tháng (๑˃ᴗ˂)ﻭ`;
   const pd = new Date(view.y,view.m-1,1), P = inMonth(pd.getFullYear(),pd.getMonth());
   const pSame = isCur() ? P.filter(t=>t.t==="out" && +t.d.slice(8) <= now.getDate()).reduce((s,t)=>s+t.a,0) : sum(P,"out");
   const diff = out - pSame;
@@ -383,17 +389,24 @@ function home(){
   return `
   ${S.sample?`<div class="banner"><span>Đang hiện <b>dữ liệu mẫu</b> để em xem thử giao diện.</span><button data-act="clearSample">Xoá mẫu</button></div>`:""}
   <section class="hero">
+    <button class="inc" data-act="editIncome">
+      <span><span class="pill">Thu nhập tháng này</span>
+      <div class="incv num">${inc ? fmt(inc) : "Chưa nhập"}</div>
+      ${extra ? `<div class="sub num">Cố định ${fmt(base)} + thu thêm ${fmt(extra)}</div>` : ""}</span>
+      <span class="pen" aria-hidden="true">✎</span>
+    </button>
+    <div class="hr"></div>
     <span class="pill">Còn lại tháng này</span>
     <div class="big num ${left<0?"neg":""}">${left<0?"−":""}${fmt(Math.abs(left))}</div>
-    <div class="sub num">Đã chi ${fmt(out)} / ngân sách ${fmt(S.budget)}</div>
+    <div class="sub num">Đã chi ${fmt(out)} / thu nhập ${fmt(inc)}</div>
     <div class="bar"><i style="width:${pct}%"></i></div>
     <div class="tip"><span>💡</span><span>${tip}</span></div>
   </section>
   <div class="row2">
     <div class="card stat"><div class="k">${isCur()?"Dự kiến cuối tháng":"Tổng chi tháng"}</div><div class="v num">≈ ${short(forecast)}</div>
       <div class="d ${diff>0?"up":"down"} num">${diff>0?"↑":"↓"} ${short(Math.abs(diff))} so với ${isCur()?"cùng kỳ tháng trước":"tháng trước"}</div></div>
-    <div class="card stat"><div class="k">Thu tháng này</div><div class="v num" style="color:var(--good)">+${short(inc)}</div>
-      <div class="d" style="color:var(--muted)">${L.filter(t=>t.t==="in").length} khoản thu</div></div>
+    <div class="card stat"><div class="k">Đã chi tháng này</div><div class="v num">${short(out)}</div>
+      <div class="d" style="color:var(--muted)">${L.filter(t=>t.t==="out").length} khoản chi</div></div>
   </div>
   <section class="card"><h3>Xài nhiều nhất <a data-go="stats">Xem thống kê ›</a></h3>
     ${top.length?`<div class="chips">${top.map(([c,v])=>`<div class="chip"><span class="e">${CATS[c].e}</span><span class="n">${CATS[c].n}</span><span class="a num">${short(v)}</span></div>`).join("")}</div>`:`<div class="empty">Chưa có khoản chi nào tháng này.</div>`}
@@ -448,7 +461,7 @@ function cal(){
     ${selL.length?selL.map(txRow).join(""):`<div class="empty">Ngày này chưa ghi gì ( ˘ω˘ )</div>`}</section>`;
 }
 function stats(){
-  const L = inMonth(view.y,view.m), out = sum(L,"out"), inc = sum(L,"in");
+  const L = inMonth(view.y,view.m), out = sum(L,"out"), inc = incomeOf(view.y,view.m);
   const pd = new Date(view.y,view.m-1,1), pout = sum(inMonth(pd.getFullYear(),pd.getMonth()),"out"), diff = out-pout;
   const byCat = {}; L.filter(t=>t.t==="out").forEach(t => byCat[t.c]=(byCat[t.c]||0)+t.a);
   const rows = Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
@@ -487,9 +500,9 @@ function highlights(L,out,rows){
 }
 function settings(){
   const th = S.theme||"auto";
-  return `<section class="card"><h3>Ngân sách</h3>
-    <div class="set"><span><div class="k">Ngân sách mỗi tháng</div><div class="h">Dùng để tính "Còn lại" và nhắc tốc độ chi</div></span></div>
-    <input class="field num" id="budget" inputmode="numeric" value="${S.budget.toLocaleString("vi-VN")}"></section>
+  return `<section class="card"><h3>Thu nhập</h3>
+    <div class="set"><span><div class="k">Thu nhập cố định mỗi tháng</div><div class="h">Tự điền cho mọi tháng, tháng nào khác thì bấm ✎ ở Tổng quan để sửa riêng</div></span></div>
+    <input class="field num" id="budget" inputmode="numeric" placeholder="vd: 6.000.000" value="${S.income?S.income.toLocaleString("vi-VN"):""}"></section>
   <section class="card"><h3>Hoá đơn định kỳ</h3>
     ${S.bills.map(b=>`<div class="bill">${ic(b.c)}<span class="m"><div style="font-weight:600">${esc(b.n)}</div><div class="due">Ngày ${b.day} hằng tháng · ${fmt(b.a)}</div></span><button class="mini" style="background:var(--bad-soft);color:var(--bad)" data-delbill="${b.id}">Xoá</button></div>`).join("")||`<div class="empty">Chưa có hoá đơn nào.</div>`}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">
@@ -521,7 +534,7 @@ function render(){
   app.innerHTML = `<header class="top"><div><div class="hello">${hello()}, sa pé ♡</div><h1 class="title">${titles[view.tab]}</h1></div>${view.tab!=="set"?monthHeader():""}</header><div class="stack">${body}</div>`;
   document.querySelectorAll(".tab").forEach(b => b.classList.toggle("on", b.dataset.tab===view.tab));
   const bi = document.getElementById("budget");
-  if(bi){ bi.addEventListener("input", () => { const v = +bi.value.replace(/\D/g,""); bi.value = v ? v.toLocaleString("vi-VN") : ""; S.budget = v; save(); }); }
+  if(bi){ bi.addEventListener("input", () => { const v = +bi.value.replace(/\D/g,""); bi.value = v ? v.toLocaleString("vi-VN") : ""; S.income = v; save(); }); }
   const vl = document.getElementById("veil");
   if(vl){ vl.addEventListener("input", () => { S.veil = +vl.value; applyBg(); }); vl.addEventListener("change", save); }
   ["ba"].forEach(id => { const el = document.getElementById(id); el && el.addEventListener("input", () => { const v=+el.value.replace(/\D/g,""); el.value = v? v.toLocaleString("vi-VN"):""; }); });
@@ -606,6 +619,22 @@ function goalForm(id){
   gt.addEventListener("input", () => { const v = +gt.value.replace(/\D/g,""); gt.value = v ? v.toLocaleString("vi-VN") : ""; });
 }
 
+function incomeSheet(){
+  const k = ym(view.y,view.m), cur = baseIncome(view.y,view.m), extra = sum(inMonth(view.y,view.m),"in");
+  G = {inc:cur};
+  sheetOpen(`<h2>Thu nhập ${monthName(view.y,view.m)}</h2>
+  <div class="lbl">Thu nhập cố định (lương, tiền tiêu vặt…)</div>
+  <div class="amt in"><input id="ia" class="num" inputmode="numeric" placeholder="0đ" value="${cur?cur.toLocaleString("vi-VN"):""}" aria-label="Thu nhập"></div>
+  <div class="quick">${[1000000,2000000,3000000,5000000].map(v=>`<button data-iq="${v}">+${short(v)}</button>`).join("")}<button data-iq="0">Xoá</button></div>
+  ${extra?`<div class="h" style="font-size:13px;color:var(--muted);text-align:center;margin-bottom:12px">Tháng này còn thu thêm ${fmt(extra)} từ các khoản "Thu" em ghi, app tự cộng vào.</div>`:""}
+  <label class="set" style="cursor:pointer"><span><div class="k">Áp dụng cho các tháng sau</div><div class="h">Bỏ chọn nếu chỉ tháng này khác</div></span>
+    <input type="checkbox" id="iall" ${S.incomeM[k]==null?"checked":""} style="width:22px;height:22px;accent-color:var(--brand)"></label>
+  <button class="btn" style="width:100%;margin-top:8px" data-act="saveIncome">Lưu</button>`);
+  const ia = document.getElementById("ia");
+  ia.addEventListener("input", () => { G.inc = +ia.value.replace(/\D/g,""); ia.value = G.inc ? G.inc.toLocaleString("vi-VN") : ""; });
+  setTimeout(()=>ia.focus(), 260);
+}
+
 /* ---------- events ---------- */
 document.addEventListener("click", e => {
   const b = e.target.closest("button,[data-go],[data-act]"); if(!b) return;
@@ -616,6 +645,7 @@ document.addEventListener("click", e => {
     view.sel = (view.y===now.getFullYear()&&view.m===now.getMonth()) ? TODAY : dkey(view.y,view.m,1); render(); return; }
   if(d.day){ view.sel = d.day; render(); return; }
   if(d.goal){ goalDetail(d.goal); return; }
+  if(d.iq!==undefined){ G.inc = +d.iq ? G.inc + +d.iq : 0; document.getElementById("ia").value = G.inc ? G.inc.toLocaleString("vi-VN") : ""; return; }
   if(d.deldep!==undefined){ if(!b.dataset.armed){ b.dataset.armed="1"; b.textContent="?"; b.style.background="var(--bad-soft)"; b.style.color="var(--bad)"; toast("Bấm lần nữa để xoá lần góp này"); return; }
     const g = S.goals.find(x=>x.id===G.id); g.dep.splice(+d.deldep,1); save(); render(); goalDetail(g.id); toast("Đã xoá lần góp"); return; }
   if(d.emo){ G.form.e = d.emo; document.querySelectorAll("[data-emo]").forEach(x=>x.classList.toggle("on", x.dataset.emo===d.emo)); return; }
@@ -636,7 +666,7 @@ document.addEventListener("click", e => {
       save(); closeSheet(); render(); toast(F.edit?"Đã lưu thay đổi":"Đã thêm " + fmt(t.a) + " ✧"); break; }
     case "delTx": S.tx = S.tx.filter(x=>x.id!==F.id); save(); closeSheet(); render(); toast("Đã xoá"); break;
     case "clearSample": S.tx = []; S.bills = []; S.paid = {}; S.goals = []; S.sample = false; save(); render(); toast("Sạch sẽ rồi, bắt đầu ghi thôi!"); break;
-    case "reset": if(b.dataset.armed){ localStorage.removeItem(KEY); S = {v:1,budget:5000000,theme:S.theme,sample:false,tx:[],bills:[],paid:{},goals:[],veil:S.veil}; save(); render(); toast("Đã xoá toàn bộ"); }
+    case "reset": if(b.dataset.armed){ localStorage.removeItem(KEY); S = {v:1,income:0,incomeM:{},theme:S.theme,sample:false,tx:[],bills:[],paid:{},goals:[],veil:S.veil}; save(); render(); toast("Đã xoá toàn bộ"); }
       else { b.dataset.armed = "1"; b.textContent = "Bấm lần nữa để xoá thật"; setTimeout(()=>{ if(b.isConnected){ delete b.dataset.armed; b.textContent = "Xoá toàn bộ dữ liệu"; } }, 3000); } break;
     case "addBill": {
       const n = document.getElementById("bn").value.trim(), a = +document.getElementById("ba").value.replace(/\D/g,""), day = Math.min(31, Math.max(1, +document.getElementById("bd").value||1));
@@ -648,6 +678,17 @@ document.addEventListener("click", e => {
       toast("Đã xuất file sao lưu"); break; }
     case "import": document.getElementById("importFile").click(); break;
     case "close": closeSheet(); break;
+    case "editIncome": incomeSheet(); break;
+    case "saveIncome": {
+      const k = ym(view.y,view.m);
+      if(document.getElementById("iall").checked){
+        /* giữ nguyên thu nhập các tháng trước đã có ghi chép */
+        const old = S.income||0, past = new Set(S.tx.map(t=>t.d.slice(0,7)).filter(x=>x<k));
+        past.forEach(x => { if(S.incomeM[x]==null) S.incomeM[x] = old; });
+        Object.keys(S.incomeM).forEach(x => { if(x >= k) delete S.incomeM[x]; });
+        S.income = G.inc;
+      } else S.incomeM[k] = G.inc;
+      save(); closeSheet(); render(); toast("Đã lưu thu nhập ✧"); break; }
     case "newGoal": goalForm(); break;
     case "editGoal": goalForm(G.id); break;
     case "saveGoal": {
@@ -670,7 +711,7 @@ scrim.addEventListener("click", closeSheet);
 document.addEventListener("keydown", e => { if(e.key==="Escape") closeSheet(); });
 document.getElementById("importFile").addEventListener("change", async e => {
   const f = e.target.files[0]; if(!f) return;
-  try{ const d = JSON.parse(await f.text()); if(!Array.isArray(d.tx)) throw 0; S = {bills:[],paid:{},theme:"auto",budget:5000000,...d}; save(); render(); toast(`Đã nhập ${S.tx.length} giao dịch`); }
+  try{ const d = JSON.parse(await f.text()); if(!Array.isArray(d.tx)) throw 0; S = {bills:[],paid:{},goals:[],incomeM:{},theme:"auto",income:0,...d}; save(); render(); toast(`Đã nhập ${S.tx.length} giao dịch`); }
   catch(_){ toast("File không đúng định dạng sao lưu"); }
   e.target.value = "";
 });
